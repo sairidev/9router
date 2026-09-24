@@ -64,7 +64,14 @@ function ensureLineReader() {
 // Resolves with the next line typed by the user, or null if stdin was closed.
 function readLine(question = "") {
   ensureLineReader();
-  if (question) process.stdout.write(question);
+  // Web consoles (Pterodactyl and similar) usually render output line-by-line:
+  // a line is only painted once a "\n" arrives. Our prompts used to end in
+  // ": " with no newline so a real TTY could echo the answer inline, but on
+  // those consoles that left the prompt stuck in an unterminated buffer -
+  // invisible until some later write happened to flush it (often together
+  // with the *next* menu, well after the user already answered blind). Force
+  // a trailing newline so the prompt always shows immediately.
+  if (question) process.stdout.write(question.endsWith("\n") ? question : question + "\n");
   if (lineQueue.length) return Promise.resolve(lineQueue.shift());
   if (stdinClosed) return Promise.resolve(null);
   return new Promise((resolve) => lineWaiters.push(resolve));
