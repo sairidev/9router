@@ -18,41 +18,8 @@ yang sudah jadi, tidak perlu `npm install` atau build Next.js (yang butuh RAM be
 Perubahan di kode 9Router (folder `cli/`): menu bernomor untuk console tanpa panah,
 port otomatis dari `SERVER_PORT`, opsi `--password`, dan env `NINEROUTER_NO_UPDATE_CHECK=1`.
 
-## 1. Upload ke repo baru
 
-```bash
-cd 9router-sairi-repo
-git init -b main
-git add .
-git commit -m "9Router SAIRI edition"
-git remote add origin https://github.com/USERNAME/NAMA-REPO.git
-git push -u origin main
-```
-
-Setelah push, tab **Actions** otomatis menjalankan workflow `Docker` dan mem-push image ke
-`ghcr.io/USERNAME/NAMA-REPO:latest` (huruf kecil semua).
-
-Agar Pterodactyl bisa menarik image tanpa login: di GitHub buka **Packages → (image) →
-Package settings → Change visibility → Public**.
-
-## 2. Pasang di Pterodactyl
-
-1. Buka `docker/egg-9router.json`, ganti `ghcr.io/USERNAME/REPO:latest` dengan image kamu.
-2. Admin panel → **Nests** → **Import Egg** → pilih file itu.
-3. Buat server dengan egg **9Router**. Isi variabel **Dashboard Password** (minimal 6 karakter).
-4. Start. Setelah banner muncul, console bertanya **Jalankan 9Router sekarang? (y/n)**.
-   - `y` (atau Enter, atau tidak menjawab 30 detik): 9Router jalan, menu bernomor muncul.
-   - `n`: 9Router tidak dijalankan, kamu dapat shell untuk mengetik perintah (mis. `git`).
-   Jawaban otomatis `y` memastikan restart otomatis panel tidak berhenti menunggu jawaban.
-   Ketik angka lalu Enter di kolom command untuk memilih menu.
-5. Dashboard: `http://IP-server:PORT` (port dari allocation).
-
-Startup command egg: `9router --port {{SERVER_PORT}} --simple-menu`.
-Untuk mode tanpa menu, ganti dengan `9router-server`.
-
-Stop memakai `^C`. Data (database, settings) tersimpan di `/home/container/.9router`.
-
-## 3. Pakai di Docker biasa
+## 1. Pakai di Docker biasa
 
 ```bash
 # tanpa menu, jalan di background
