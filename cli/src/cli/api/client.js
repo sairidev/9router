@@ -83,7 +83,7 @@ function configure(options = {}) {
  * @param {Object} body - Request body (optional)
  * @returns {Promise<Object>} Response with { success, data/error }
  */
-function makeRequest(method, path, body = null) {
+function makeRequest(method, path, body = null, timeoutMs = 30000) {
   return new Promise((resolve) => {
     const httpModule = config.protocol === "https:" ? https : http;
     
@@ -149,12 +149,11 @@ function makeRequest(method, path, body = null) {
       req.destroy();
       resolve({
         success: false,
-        error: "Request timeout",
+        error: `Request timeout (>${Math.round(timeoutMs / 1000)}s)`,
       });
     });
 
-    // Set timeout (30 seconds)
-    req.setTimeout(30000);
+    req.setTimeout(timeoutMs);
 
     // Write body if present
     if (body && (method === "POST" || method === "PUT" || method === "PATCH")) {
@@ -479,7 +478,11 @@ async function getTunnelStatus() {
  * @returns {Promise<Object>} { success, data: { tunnelUrl, shortId } }
  */
 async function enableTunnel() {
-  return makeRequest("POST", "/api/tunnel/enable");
+  // Server-side this can legitimately take up to ~90s (cloudflared connect
+  // attempt) + 8s DNS warmup, plus time to download the cloudflared binary
+  // on first run. Give it real room so the CLI shows cloudflared's actual
+  // error (e.g. "port 7844 blocked") instead of a generic client timeout.
+  return makeRequest("POST", "/api/tunnel/enable", null, 150000);
 }
 
 /**
