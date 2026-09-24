@@ -87,14 +87,18 @@ export async function enableTunnel(localPort = 20128) {
     await updateSettings({ tunnelEnabled: true, tunnelUrl });
     console.log(`[Tunnel] registered shortId=${shortId} publicUrl=${publicUrl}`);
 
-    // Verify publicUrl first (worker route is reliable; direct *.trycloudflare.com DNS may lag)
-    await waitForHealth(publicUrl, token);
-    console.log("[Tunnel] public URL healthy");
-    // Direct tunnel probe is best-effort: DNS for *.trycloudflare.com can be slow/blocked
-    if (!(await probeUrlAlive(tunnelUrl))) {
-      console.warn("[Tunnel] direct URL not reachable yet, continuing via publicUrl");
+    // Verify the direct tunnel URL first — this IS the actual working tunnel,
+    // and it's fully within Cloudflare's own infra (no extra dependency).
+    await waitForHealth(tunnelUrl, token);
+    console.log("[Tunnel] direct URL healthy");
+    // Vanity/public URL (abc-tunnel.us) is a separate, third-party worker
+    // layered on top purely for a nicer URL. It's best-effort: if that
+    // service is slow/unreachable, don't fail the whole tunnel over it —
+    // the user still has a working dashboard via the direct URL.
+    if (!(await probeUrlAlive(publicUrl))) {
+      console.warn("[Tunnel] public (vanity) URL not reachable, continuing via direct URL");
     } else {
-      console.log("[Tunnel] direct URL healthy");
+      console.log("[Tunnel] public URL healthy");
     }
 
     console.log("[Tunnel] enable success");
