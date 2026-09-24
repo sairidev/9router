@@ -18,24 +18,6 @@ yang sudah jadi, tidak perlu `npm install` atau build Next.js (yang butuh RAM be
 Perubahan di kode 9Router (folder `cli/`): menu bernomor untuk console tanpa panah,
 port otomatis dari `SERVER_PORT`, opsi `--password`, dan env `NINEROUTER_NO_UPDATE_CHECK=1`.
 
-
-## 1. Pakai di Docker biasa
-
-```bash
-# tanpa menu, jalan di background
-docker run -d --name 9router --restart always \
-  -p 2002:2002 -e SERVER_PORT=2002 \
-  -e INITIAL_PASSWORD="GantiPasswordMu" \
-  -v 9router-data:/home/container \
-  ghcr.io/USERNAME/NAMA-REPO:latest
-
-# dengan menu interaktif (panah atas/bawah bekerja di terminal biasa)
-docker run -it --rm -p 20128:20128 -v 9router-data:/home/container \
-  ghcr.io/USERNAME/NAMA-REPO:latest
-```
-
-Build lokal: `docker build -f docker/Dockerfile -t 9router-sairi .` (butuh RAM sekitar 4 GB).
-
 ## Environment variable
 
 | Variabel | Fungsi | Default |
