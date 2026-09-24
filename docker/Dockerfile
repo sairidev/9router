@@ -53,7 +53,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        curl ca-certificates procps iproute2 figlet tzdata jq nano \
+        curl ca-certificates git procps iproute2 tzdata jq nano \
     && rm -rf /var/lib/apt/lists/*
 
 # Prebuilt app (cli.js, src, hooks, app/, node_modules)

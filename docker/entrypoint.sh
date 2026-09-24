@@ -5,12 +5,11 @@
 # 1. shows the system / runtime banner
 # 2. starts 9Router:
 #      - arguments given          -> run them          (docker run image bash)
-#      - Pterodactyl (STARTUP)    -> run the panel's startup command
+#      - Pterodactyl (STARTUP)    -> ask "start 9Router? (y/n)", then run the startup command
 #      - interactive terminal     -> 9Router CLI menu
 #      - detached / no terminal   -> headless web server
 
 NINEROUTER_HOME="${NINEROUTER_HOME:-/opt/9router}"
-BANNER_TEXT="${BANNER_TEXT:-SAIRI}"
 
 cd /home/container 2>/dev/null || cd "${HOME:-/}" || true
 export HOME="${HOME:-/home/container}"
@@ -70,6 +69,42 @@ read_memory() {
     MEM_PERCENT=$(( MEM_USED * 100 / MEM_TOTAL ))
 }
 
+print_logo() {
+    echo -e "${GREEN}${BOLD}"
+    cat <<'ART'
+ ___  ___   ___   _   _  _____  ___  ___ 
+/ _ \| _ \ / _ \ | | | ||_   _|| __|| _ \
+\_, /|   /| (_) || |_| |  | |  | _| |   /
+ /_/ |_|_\ \___/  \___/   |_|  |___||_|_\
+ART
+    echo -e "${RESET}"
+}
+
+# y/n prompt. Enter or no answer within the timeout counts as "y", so unattended
+# restarts (auto-start after a crash or reboot) never hang on the question.
+ask_start() {
+    local timeout="${START_PROMPT_TIMEOUT:-30}" ans
+    while true; do
+        echo -e "${PINK}${BOLD}Jalankan 9Router sekarang? (y/n)${RESET} ${GRAY}[Enter/otomatis = y dalam ${timeout} detik]${RESET}"
+        if ! read -r -t "$timeout" ans; then
+            return 0
+        fi
+        case "${ans,,}" in
+            ""|y|yes|ya) return 0 ;;
+            n|no|tidak)  return 1 ;;
+            *) echo -e "${YELLOW}Ketik y (yes) atau n (no).${RESET}" ;;
+        esac
+    done
+}
+
+# "n": leave 9Router off and hand over a shell
+open_shell() {
+    echo -e "${PINK}${BOLD}Silahkan masukan perintah.${RESET}"
+    echo -e "${GRAY}Jalankan 9Router kapan saja: 9router --port ${SERVER_PORT:-20128} --simple-menu${RESET}"
+    export PS1='\[\e[1;32m\]container\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]\$ '
+    exec /bin/bash --norc -i
+}
+
 show_banner() {
     read_memory
     local disk_used disk_total disk_percent
@@ -96,11 +131,15 @@ show_banner() {
     fi
 
     [ -t 1 ] && clear
-    echo -e "${GREEN}${BOLD}"
-    figlet -f standard "${BANNER_TEXT}" 2>/dev/null || echo "${BANNER_TEXT}"
-    echo -e "${RESET}"
+    print_logo
     echo -e "$LINE"
     echo -e "${CYAN}Location${RESET}   : ${location}"
+    if [[ "${SHOW_IP,,}" == "true" || "${SHOW_IP}" == "1" ]]; then
+        local public_ip
+        public_ip=$(curl -s --max-time 2 ipinfo.io/ip 2>/dev/null | tr -d '\n')
+        [[ "$public_ip" =~ ^[0-9a-fA-F:.]+$ ]] || public_ip="Unknown"
+        echo -e "${CYAN}IP Address${RESET} : ${public_ip}"
+    fi
     echo -e "${CYAN}OS${RESET}         : ${os_name:-Unknown}"
     echo -e "${CYAN}CPU${RESET}        : ${cpu_name:-Unknown} (${cpu_cores:-?} Cores)"
     echo -e "${CYAN}Uptime${RESET}     : $(uptime -p 2>/dev/null | sed 's/up //')"
@@ -127,10 +166,12 @@ fi
 if [ -n "${STARTUP}" ]; then
     # turn {{VAR}} into ${VAR} and expand (same approach as the official yolks)
     PARSED=$(echo "${STARTUP}" | sed -e 's/{{/${/g' -e 's/}}/}/g' | eval echo "$(cat -)")
-    echo -e "${PINK}${BOLD}Menjalankan 9Router...${RESET}"
-    printf "\033[1m\033[33mcontainer@pterodactyl~ \033[0m%s\n" "$PARSED"
-    # shellcheck disable=SC2086
-    exec env ${PARSED}
+    if ask_start; then
+        echo -e "${GREEN}${BOLD}Memulai 9Router...${RESET}"
+        # shellcheck disable=SC2086
+        exec env ${PARSED}
+    fi
+    open_shell
 fi
 
 # 3) plain docker with a terminal (docker run -it): interactive CLI
