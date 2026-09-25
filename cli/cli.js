@@ -105,9 +105,13 @@ function getLanIp() {
   return null;
 }
 
-// Local URL stays "localhost"; warn separately when bound to all interfaces (network-exposed).
+// When bound to all interfaces (default, e.g. inside Docker/Pterodactyl), show the
+// container's real LAN IP instead of "localhost" so the URL is reachable from outside
+// the container — same behavior as Docker. Falls back to "localhost" only if no
+// non-internal IPv4 address can be found.
 function getDisplayHost() {
-  return host === DEFAULT_HOST ? "localhost" : host;
+  if (host !== DEFAULT_HOST) return host;
+  return getLanIp() || "localhost";
 }
 const MAX_PORT_ATTEMPTS = 10;
 // Identifiers for killAllAppProcesses - only kill 9router specifically
@@ -616,10 +620,10 @@ function startServer(updatePromise) {
   const latestVersionPromise = Promise.resolve(updatePromise);
   const displayHost = getDisplayHost();
   const url = `http://${displayHost}:${port}/dashboard`;
-  // Surface real network exposure when bound to all interfaces (default 0.0.0.0).
-  if (host === DEFAULT_HOST) {
-    const lanIp = getLanIp();
-    if (lanIp) console.log(`\x1b[33m⚠ Network-exposed: reachable at http://${lanIp}:${port} (bound 0.0.0.0). Use --host 127.0.0.1 for local-only.\x1b[0m`);
+  // Warn that this is network-exposed when bound to all interfaces (default 0.0.0.0) —
+  // the URL above already shows the real LAN/container IP, so no need to repeat it here.
+  if (host === DEFAULT_HOST && displayHost !== "localhost") {
+    console.log(`\x1b[33m⚠ Network-exposed (bound 0.0.0.0). Use --host 127.0.0.1 for local-only.\x1b[0m`);
   }
 
   let restartCount = 0;
