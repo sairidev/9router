@@ -126,12 +126,16 @@ async function enableTunnel() {
   const result = await api.enableTunnel();
 
   if (result.success) {
-    const { publicUrl, shortId, alreadyRunning } = result.data || {};
+    const { tunnelUrl, publicUrl, shortId, alreadyRunning } = result.data || {};
     if (alreadyRunning) {
       showStatus(`Tunnel already running: ${publicUrl}`, "success");
     } else {
       showStatus(`Tunnel enabled: ${publicUrl} (${shortId})`, "success");
     }
+    // Direct Cloudflare URL as a fallback/debug check. The vanity link above (abc-tunnel.us)
+    // is a separate worker layered on top and can lag a bit right after enabling (edge
+    // propagation) even once the tunnel itself is live — this one IS the tunnel.
+    if (tunnelUrl) showStatus(`Direct URL (fallback): ${tunnelUrl}`, "info");
   } else {
     showStatus(`Failed: ${result.error}`, "error");
   }
