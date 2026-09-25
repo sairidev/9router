@@ -52,6 +52,15 @@ export async function enableTunnel(localPort = 20128) {
           console.log(`[Tunnel] already running, reuse: ${existing.tunnelUrl}`);
           return { success: true, tunnelUrl: existing.tunnelUrl, shortId: existing.shortId, publicUrl, alreadyRunning: true };
         }
+        // Self-probe means THIS container calling back out to its own tunnel URL over
+        // the public internet and looping back in. That round trip can be blocked on
+        // hosts with restricted egress (e.g. locked-down Pterodactyl nodes) even while
+        // cloudflared itself is fine. In that case trust the PID over the probe instead
+        // of tearing down and respawning a tunnel that already works.
+        if (!directOk && !publicOk && isCloudflaredRunning()) {
+          console.warn("[Tunnel] self-probe unreachable but cloudflared process is alive — reusing anyway");
+          return { success: true, tunnelUrl: existing.tunnelUrl, shortId: existing.shortId, publicUrl, alreadyRunning: true };
+        }
         console.log(`[Tunnel] stale (direct=${directOk} public=${publicOk}), respawn`);
       }
     }
@@ -87,10 +96,20 @@ export async function enableTunnel(localPort = 20128) {
     await updateSettings({ tunnelEnabled: true, tunnelUrl });
     console.log(`[Tunnel] registered shortId=${shortId} publicUrl=${publicUrl}`);
 
-    // Verify the direct tunnel URL first — this IS the actual working tunnel,
-    // and it's fully within Cloudflare's own infra (no extra dependency).
-    await waitForHealth(tunnelUrl, token);
-    console.log("[Tunnel] direct URL healthy");
+    // Best-effort self-check only. cloudflared ALREADY reported this URL as live via
+    // its own logs — that's the actual signal spawnQuickTunnel waited on, and it comes
+    // straight from Cloudflare's edge registering the connection. This extra probe means
+    // the container calls back out to its own public URL and loops back in, which can
+    // fail on hosts with restricted egress (e.g. locked-down Pterodactyl nodes) even
+    // when the tunnel is genuinely working. So: log it, but don't fail "enable tunnel"
+    // over a check that isn't the source of truth. A real cancellation still propagates.
+    try {
+      await waitForHealth(tunnelUrl, token);
+      console.log("[Tunnel] direct URL healthy");
+    } catch (e) {
+      if (e.message === "cancelled") throw e;
+      console.warn(`[Tunnel] self-check failed (${e.message}) — continuing, cloudflared already reported the tunnel live`);
+    }
     // Vanity/public URL (abc-tunnel.us) is a separate, third-party worker
     // layered on top purely for a nicer URL. It's best-effort: if that
     // service is slow/unreachable, don't fail the whole tunnel over it —
