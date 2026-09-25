@@ -105,12 +105,48 @@ function getLanIp() {
   return null;
 }
 
-// When bound to all interfaces (default, e.g. inside Docker/Pterodactyl), show the
-// container's real LAN IP instead of "localhost" so the URL is reachable from outside
-// the container — same behavior as Docker. Falls back to "localhost" only if no
-// non-internal IPv4 address can be found.
+// Best-effort, non-blocking lookup of the machine's real public IP (kicked off once at
+// startup below). Needed because inside Docker/Pterodactyl, getLanIp() only sees the
+// container's internal bridge IP (e.g. 172.18.0.3) — not reachable from outside the host.
+let resolvedPublicIp = null;
+function fetchPublicIp() {
+  const endpoints = ["https://api.ipify.org", "https://checkip.amazonaws.com"];
+  const tryOne = (url) => new Promise((resolve, reject) => {
+    const req = https.get(url, { timeout: 2000 }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        const ip = data.trim();
+        if (/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) resolve(ip);
+        else reject(new Error("bad response"));
+      });
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+  });
+  (async () => {
+    for (const url of endpoints) {
+      try {
+        resolvedPublicIp = await tryOne(url);
+        return;
+      } catch { /* try next endpoint */ }
+    }
+  })();
+}
+fetchPublicIp(); // fire-and-forget; result (if any) is ready well before the menu prints
+
+// When bound to all interfaces (default, e.g. inside Docker/Pterodactyl), prefer, in order:
+// 1) the machine's real public IP (resolved above) — matches what's actually reachable
+//    from outside, same as Docker's published-port behavior
+// 2) Pterodactyl's SERVER_IP env var, when it's a real address (not the "any interface"
+//    0.0.0.0 wildcard)
+// 3) the container's internal LAN/bridge IP
+// 4) "localhost" as a last resort
 function getDisplayHost() {
   if (host !== DEFAULT_HOST) return host;
+  if (resolvedPublicIp) return resolvedPublicIp;
+  const serverIpEnv = process.env.SERVER_IP;
+  if (serverIpEnv && serverIpEnv !== "0.0.0.0" && serverIpEnv !== DEFAULT_HOST) return serverIpEnv;
   return getLanIp() || "localhost";
 }
 const MAX_PORT_ATTEMPTS = 10;
