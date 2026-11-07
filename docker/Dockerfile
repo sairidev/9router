@@ -34,6 +34,13 @@ RUN --mount=type=cache,target=/root/.npm \
     && rm -rf .build-home \
     && npm prune --omit=dev
 
+# wreq-js (OpenCode Free / Grok Web TLS client) and playwright-core are lazy runtime
+# deps (open-sse/services/lazyRuntime.js). Without them every server would npm-install
+# them into its own ~/.9router/runtime on first use. Bake them in, like upstream's
+# Dockerfile does (decolua/9router#5245). Installed after the prune so they are kept.
+RUN --mount=type=cache,target=/root/.npm \
+    cd cli && npm install --no-save --no-audit --no-fund wreq-js@^3.2.0 playwright-core@^1.62.1
+
 # ---------------------------------------------------------------- runtime ---
 FROM ${NODE_IMAGE} AS runner
 
@@ -53,7 +60,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        curl ca-certificates git procps iproute2 tzdata jq nano \
+        curl ca-certificates git procps iproute2 tzdata jq nano ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Prebuilt app (cli.js, src, hooks, app/, node_modules)
